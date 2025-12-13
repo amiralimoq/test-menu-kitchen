@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Staff Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <title>Restaurant System Login</title>
+    <!-- فونت -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- کتابخانه Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -18,69 +22,151 @@
         .login-card {
             background: white;
             padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+            width: 320px;
             text-align: center;
-            width: 300px;
         }
-        h2 { color: #2A2A2A; margin-bottom: 20px; }
+        .login-logo {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2A2A2A;
+            margin-bottom: 30px;
+            display: inline-block;
+        }
+        .login-logo span { color: #FF724C; }
+        
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; margin-left: 5px; }
+        
         input {
             width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
+            padding: 14px;
+            border: 1px solid #eee;
+            border-radius: 12px;
             box-sizing: border-box;
             outline: none;
+            font-size: 14px;
+            transition: 0.3s;
+            background: #FAFAFA;
         }
+        input:focus { border-color: #FF724C; background: #fff; }
+        
         button {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             background-color: #FF724C;
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             font-weight: 600;
+            font-size: 14px;
             cursor: pointer;
             transition: 0.2s;
-        }
-        button:hover { background-color: #e05530; }
-        #error-msg {
-            color: red;
-            font-size: 12px;
             margin-top: 10px;
+            box-shadow: 0 5px 20px rgba(255, 114, 76, 0.25);
+        }
+        button:hover { background-color: #e05530; transform: translateY(-2px); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        .error-msg {
+            color: #FF7675;
+            font-size: 13px;
+            margin-top: 15px;
             display: none;
+            background: #FFF0F0;
+            padding: 10px;
+            border-radius: 8px;
         }
     </style>
 </head>
 <body>
 
     <div class="login-card">
-        <h2>Kitchen Staff</h2>
-        <input type="password" id="password" placeholder="Enter Access Code">
-        <button onclick="checkPassword()">Login</button>
-        <p id="error-msg">Incorrect Password!</p>
+        <div class="login-logo">food<span>Resto</span></div>
+        
+        <div class="input-group">
+            <label>Username</label>
+            <input type="text" id="username" placeholder="Enter username">
+        </div>
+        
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="Enter password">
+        </div>
+
+        <button id="login-btn" onclick="handleLogin()">Login to System</button>
+        <div class="error-msg" id="error-msg">Incorrect Username or Password!</div>
     </div>
 
     <script>
-        function checkPassword() {
-            const password = document.getElementById('password').value;
+        // ==========================================
+        // تنظیمات Supabase (دقیقاً همان مقادیر admin.js)
+        // ==========================================
+        const SUPABASE_URL = 'https://ducmehygksmijtynfuzt.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1Y21laHlna3NtaWp0eW5mdXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NTgyNTQsImV4cCI6MjA4MTIzNDI1NH0.Zo0RTm5fPn-sA6AkqSIPCCiehn8iW2Ou4I26HnC2CfU';
+
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function handleLogin() {
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value.trim();
             const errorMsg = document.getElementById('error-msg');
-            
-            // رمز عبور را اینجا تعیین کنید (مثلاً: 1234)
-            if (password === '111404') {
-                // ذخیره وضعیت لاگین در مرورگر
-                sessionStorage.setItem('isLoggedIn', 'true');
-                // هدایت به صفحه آشپزخانه
-                window.location.href = 'kitchen.html';
-            } else {
+            const btn = document.getElementById('login-btn');
+
+            errorMsg.style.display = 'none';
+
+            if(!user || !pass) {
+                errorMsg.innerText = "Please fill all fields.";
                 errorMsg.style.display = 'block';
+                return;
+            }
+
+            // 1. لاگین ادمین (نام کاربری و رمز ثابت)
+            if (user === 'admin' && pass === 'Admin123') {
+                sessionStorage.setItem('role', 'admin');
+                window.location.href = 'admin.html';
+                return;
+            }
+
+            // 2. لاگین پرسنل (چک کردن از دیتابیس Supabase)
+            btn.innerText = "Verifying...";
+            btn.disabled = true;
+
+            try {
+                // جستجوی کاربر در جدول staff
+                const { data, error } = await supabase
+                    .from('staff')
+                    .select('*')
+                    .eq('username', user)
+                    .eq('password', pass); // در حالت پیشرفته باید رمز Hash شده چک شود
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    // موفقیت
+                    sessionStorage.setItem('role', 'kitchen');
+                    sessionStorage.setItem('isLoggedIn', 'true');
+                    window.location.href = 'kitchen.html';
+                } else {
+                    // ناموفق
+                    errorMsg.innerText = "Invalid credentials!";
+                    errorMsg.style.display = 'block';
+                }
+
+            } catch (err) {
+                console.error(err);
+                errorMsg.innerText = "Connection Error. Check internet.";
+                errorMsg.style.display = 'block';
+            } finally {
+                btn.innerText = "Login to System";
+                btn.disabled = false;
             }
         }
 
-        // زدن دکمه اینتر برای ورود
-        document.getElementById('password').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') checkPassword();
+        // زدن دکمه اینتر برای لاگین
+        document.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') handleLogin();
         });
     </script>
 </body>
