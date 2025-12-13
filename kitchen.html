@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+    // چک کردن وضعیت لاگین
+    // اگر کاربر لاگین نکرده باشد، او را به صفحه لاگین پرت می‌کند
+    if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+        window.location.href = 'login.html';
+    }
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Food Dashboard UI</title>
