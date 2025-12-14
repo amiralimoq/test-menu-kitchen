@@ -1,16 +1,14 @@
 // ==========================================
 // تنظیمات اتصال به دیتابیس Supabase
-// مقادیر زیر را از پنل Supabase > Project Settings > API کپی کنید
 // ==========================================
 const SUPABASE_URL = 'https://ducmehygksmijtynfuzt.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1Y21laHlna3NtaWp0eW5mdXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NTgyNTQsImV4cCI6MjA4MTIzNDI1NH0.Zo0RTm5fPn-sA6AkqSIPCCiehn8iW2Ou4I26HnC2CfU';
 
-// راه‌اندازی کلاینت
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- 1. خروج از حساب (Logout) ---
+
+    // --- Logout ---
     const logoutBtn = document.querySelector('.logout');
     if(logoutBtn) {
         logoutBtn.addEventListener('click', () => {
@@ -21,141 +19,180 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 2. متغیرهای فرم ---
+    // ============================================
+    // 1. تغییر رمز خود مدیر (Admin Password Update)
+    // ============================================
+    const adminPassInput = document.getElementById('admin-new-pass');
+    const updateAdminBtn = document.getElementById('update-admin-btn');
+    const adminError = document.getElementById('admin-error');
+    const adminSuccess = document.getElementById('admin-success');
+
+    if (updateAdminBtn) {
+        updateAdminBtn.addEventListener('click', async () => {
+            const newPass = adminPassInput.value.trim();
+            adminError.style.display = 'none';
+            adminSuccess.style.display = 'none';
+
+            // اعتبارسنجی رمز
+            const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
+            if (!passRegex.test(newPass)) {
+                adminError.innerText = "Password must include 1 Uppercase, 1 Lowercase, and 1 Number.";
+                adminError.style.display = 'block';
+                return;
+            }
+
+            updateAdminBtn.innerText = "Updating...";
+            updateAdminBtn.disabled = true;
+
+            // آپدیت رمز در جدول admins
+            const { error } = await supabase
+                .from('admins')
+                .update({ password: newPass })
+                .eq('username', 'admin');
+
+            if (error) {
+                adminError.innerText = "Error: " + error.message;
+                adminError.style.display = 'block';
+            } else {
+                adminSuccess.style.display = 'block';
+                adminPassInput.value = '';
+            }
+            updateAdminBtn.innerText = "Update My Password";
+            updateAdminBtn.disabled = false;
+        });
+    }
+
+    // ============================================
+    // 2. مدیریت کارمندان (Staff Management)
+    // ============================================
     const userInput = document.getElementById('new-user');
     const passInput = document.getElementById('new-pass');
     const createBtn = document.getElementById('create-btn');
     const userError = document.getElementById('user-error');
     const passError = document.getElementById('pass-error');
-    const successMsg = document.getElementById('success-msg');
-    
-    // بارگذاری لیست کارمندان به محض باز شدن صفحه
+    const staffSuccess = document.getElementById('staff-success');
+
     loadStaffList();
 
-    // --- 3. کلیک روی دکمه ساخت اکانت ---
-    if(createBtn) {
+    // --- ساخت کارمند جدید ---
+    if (createBtn) {
         createBtn.addEventListener('click', async () => {
             const username = userInput.value.trim();
             const password = passInput.value.trim();
-            let isValid = true;
-
-            // مخفی کردن پیام‌های قبلی
+            
             userError.style.display = 'none';
             passError.style.display = 'none';
-            successMsg.style.display = 'none';
+            staffSuccess.style.display = 'none';
+            let isValid = true;
 
-            // الف) اعتبارسنجی نام کاربری (فقط حروف انگلیسی و عدد)
-            const userRegex = /^[a-zA-Z0-9]+$/;
-            if (!userRegex.test(username)) {
-                userError.innerText = "Username must contain only English letters and numbers.";
+            if (!/^[a-zA-Z0-9]+$/.test(username)) {
+                userError.innerText = "Username: Only English letters and numbers allowed.";
                 userError.style.display = 'block';
                 isValid = false;
             }
-
-            // ب) اعتبارسنجی رمز عبور (بزرگ، کوچک، عدد - انگلیسی)
-            // حداقل یک حرف کوچک، یک بزرگ، یک عدد
             const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
             if (!passRegex.test(password)) {
-                passError.innerText = "Password must include 1 Uppercase, 1 Lowercase, and 1 Number.";
+                passError.innerText = "Password: Must have 1 Uppercase, 1 Lowercase, 1 Number.";
                 passError.style.display = 'block';
                 isValid = false;
             }
 
             if (isValid) {
-                // غیرفعال کردن دکمه تا پایان عملیات
                 createBtn.innerText = "Saving...";
                 createBtn.disabled = true;
 
-                try {
-                    // چک کردن تکراری نبودن نام کاربری در دیتابیس
-                    const { data: existingUser } = await supabase
-                        .from('staff')
-                        .select('username')
-                        .eq('username', username);
-
-                    if (existingUser && existingUser.length > 0) {
-                        userError.innerText = "This username is already taken!";
-                        userError.style.display = 'block';
-                    } else {
-                        // ذخیره در دیتابیس Supabase
-                        const { error } = await supabase
-                            .from('staff')
-                            .insert([{ username: username, password: password }]);
-
-                        if (error) throw error;
-
-                        // موفقیت
-                        successMsg.style.display = 'block';
-                        userInput.value = '';
-                        passInput.value = '';
-                        loadStaffList(); // به‌روزرسانی لیست پایین صفحه
-                    }
-                } catch (error) {
-                    console.error(error);
-                    alert("Database Error: " + error.message);
-                } finally {
+                const { data: existing } = await supabase.from('staff').select('username').eq('username', username);
+                if (existing && existing.length > 0) {
+                    userError.innerText = "Username already exists.";
+                    userError.style.display = 'block';
                     createBtn.innerText = "Create Account";
                     createBtn.disabled = false;
+                    return;
                 }
+
+                const { error } = await supabase.from('staff').insert([{ username, password }]);
+                
+                if (!error) {
+                    staffSuccess.style.display = 'block';
+                    userInput.value = '';
+                    passInput.value = '';
+                    loadStaffList();
+                } else {
+                    alert(error.message);
+                }
+                createBtn.innerText = "Create Account";
+                createBtn.disabled = false;
             }
         });
     }
 
-    // --- 4. تابع دریافت لیست کارمندان از دیتابیس ---
+    // --- لیست و عملیات کارمندان ---
     async function loadStaffList() {
         const container = document.getElementById('staff-container');
-        if(!container) return;
+        if (!container) return;
+        
+        const { data, error } = await supabase.from('staff').select('*').order('id', { ascending: false });
 
-        // دریافت اطلاعات از جدول staff
-        const { data, error } = await supabase
-            .from('staff')
-            .select('*')
-            .order('id', { ascending: false });
-
+        if (error || !data) return;
         container.innerHTML = '';
-
-        if (error) {
-            container.innerHTML = '<p style="color:red">Error loading staff list.</p>';
+        
+        if (data.length === 0) {
+            container.innerHTML = '<p style="color:#aaa">No staff found.</p>';
             return;
         }
 
-        if (!data || data.length === 0) {
-            container.innerHTML = '<p style="color:#aaa; font-size:13px;">No staff accounts created yet.</p>';
-            return;
-        }
-
-        // ساخت HTML برای هر کارمند
         data.forEach(user => {
             const div = document.createElement('div');
             div.className = 'staff-item';
             div.innerHTML = `
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="width:30px; height:30px; background:#eee; border-radius:50%; display:flex; align-items:center; justify-content:center;">
-                        <i class="ri-user-line" style="color:#555;"></i>
+                    <div style="width:35px; height:35px; background:#f0f0f0; border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                        <i class="ri-user-line"></i>
                     </div>
-                    <span style="font-weight:500; font-size:14px;">${user.username}</span>
+                    <span style="font-weight:500;">${user.username}</span>
                 </div>
-                <div class="btn-delete" onclick="deleteUser(${user.id})">
-                    <i class="ri-delete-bin-line"></i> Delete
+                <div class="staff-actions">
+                    <button class="btn-action btn-reset" onclick="resetPassword(${user.id}, '${user.username}')">
+                        <i class="ri-key-2-line"></i> New Pass
+                    </button>
+                    <button class="btn-action btn-delete" onclick="deleteUser(${user.id})">
+                        <i class="ri-delete-bin-line"></i> Delete
+                    </button>
                 </div>
             `;
             container.appendChild(div);
         });
     }
 
-    // --- 5. تابع حذف کاربر (Global) ---
-    window.deleteUser = async function(id) {
-        if(confirm('Are you sure you want to remove this access?')) {
+    // --- تابع تغییر رمز کارمند (Global) ---
+    window.resetPassword = async function(id, username) {
+        const newPass = prompt(`Enter NEW password for ${username}:`);
+        
+        if (newPass) {
+            const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
+            if (!passRegex.test(newPass)) {
+                alert("Error: Password must include 1 Uppercase, 1 Lowercase, and 1 Number.");
+                return;
+            }
+
             const { error } = await supabase
                 .from('staff')
-                .delete()
+                .update({ password: newPass })
                 .eq('id', id);
 
             if (error) {
-                alert("Error deleting user: " + error.message);
+                alert("Error updating password: " + error.message);
             } else {
-                loadStaffList(); // رفرش لیست
+                alert(`Password for ${username} updated successfully!`);
             }
+        }
+    }
+
+    // --- تابع حذف کارمند (Global) ---
+    window.deleteUser = async function(id) {
+        if(confirm('Are you sure you want to remove this user?')) {
+            const { error } = await supabase.from('staff').delete().eq('id', id);
+            if(!error) loadStaffList();
         }
     }
 });
