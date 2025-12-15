@@ -8,7 +8,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- 1. خروج از حساب (Logout) ---
+    // --- Logout ---
     const logoutBtn = document.querySelector('.logout');
     if(logoutBtn) {
         logoutBtn.addEventListener('click', () => {
@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================
-    // 2. تغییر رمز خود مدیر (Admin Password Update)
+    // 1. تغییر رمز خود مدیر (Admin Password Update)
     // ============================================
     const adminPassInput = document.getElementById('admin-new-pass');
     const updateAdminBtn = document.getElementById('update-admin-btn');
@@ -33,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
             adminError.style.display = 'none';
             adminSuccess.style.display = 'none';
 
-            // اعتبارسنجی رمز عبور (Validation)
             const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
             if (!passRegex.test(newPass)) {
                 adminError.innerText = "Password must include 1 Uppercase, 1 Lowercase, and 1 Number.";
@@ -45,10 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
             updateAdminBtn.disabled = true;
 
             try {
-                // استفاده از RPC (تابع دیتابیس) برای عبور از RLS
+                // استفاده از تابع RPC امنیتی
                 const { error } = await supabaseClient.rpc('update_admin_password', {
                     new_password: newPass,
-                    target_user: 'admin' // نام کاربری مدیر
+                    target_user: 'admin'
                 });
 
                 if (error) throw error;
@@ -57,13 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 adminPassInput.value = '';
 
             } catch (err) {
-                console.error("Update Error:", err);
-                // اگر ارور مربوط به نبود تابع باشد (چون هنوز در SQL نساختید)
-                if (err.message.includes('function') && err.message.includes('does not exist')) {
-                    adminError.innerText = "Error: Please create 'update_admin_password' function in Supabase SQL Editor.";
-                } else {
-                    adminError.innerText = "Update Failed: " + err.message;
-                }
+                console.error("Update Admin Error:", err);
+                adminError.innerText = "Error: " + err.message;
                 adminError.style.display = 'block';
             } finally {
                 updateAdminBtn.innerText = "Update My Password";
@@ -73,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================
-    // 3. مدیریت کارمندان (Staff Management)
+    // 2. مدیریت کارمندان (Staff Management)
     // ============================================
     const userInput = document.getElementById('new-user');
     const passInput = document.getElementById('new-pass');
@@ -82,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const passError = document.getElementById('pass-error');
     const staffSuccess = document.getElementById('staff-success');
 
-    // بارگذاری اولیه لیست
     loadStaffList();
 
     // --- ساخت کارمند جدید ---
@@ -96,13 +89,11 @@ document.addEventListener('DOMContentLoaded', () => {
             staffSuccess.style.display = 'none';
             let isValid = true;
 
-            // الف) اعتبارسنجی نام کاربری
             if (!/^[a-zA-Z0-9]+$/.test(username)) {
                 userError.innerText = "Username: Only English letters and numbers allowed.";
                 userError.style.display = 'block';
                 isValid = false;
             }
-            // ب) اعتبارسنجی رمز عبور
             const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
             if (!passRegex.test(password)) {
                 passError.innerText = "Password: Must have 1 Uppercase, 1 Lowercase, 1 Number.";
@@ -115,26 +106,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 createBtn.disabled = true;
 
                 try {
-                    // 1. چک کردن تکراری نبودن (نیاز به Policy خواندن دارد)
-                    const { data: existing } = await supabaseClient
-                        .from('staff')
-                        .select('username')
-                        .eq('username', username);
-                    
-                    if (existing && existing.length > 0) {
-                        userError.innerText = "Username already exists.";
-                        userError.style.display = 'block';
-                        createBtn.innerText = "Create Account";
-                        createBtn.disabled = false;
-                        return;
+                    // چک کردن تکراری بودن (به روش امن: تلاش برای ساخت و مدیریت ارور)
+                    // اینجا از تابع RPC استفاده می‌کنیم
+                    const { error } = await supabaseClient.rpc('create_staff', {
+                        new_username: username,
+                        new_password: password
+                    });
+
+                    if (error) {
+                        // اگر خطای یکتایی (Unique) بود
+                        if (error.message.includes('unique') || error.message.includes('duplicate')) {
+                             throw new Error("Username already exists.");
+                        }
+                        throw error;
                     }
-
-                    // 2. ساخت کارمند
-                    const { error } = await supabaseClient
-                        .from('staff')
-                        .insert([{ username: username, password: password }]);
-
-                    if (error) throw error;
                     
                     staffSuccess.style.display = 'block';
                     userInput.value = '';
@@ -143,7 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (err) {
                     console.error("Create Staff Error:", err);
-                    alert("Error creating staff: " + err.message + "\n(Check RLS Policies for 'staff' table)");
+                    userError.innerText = err.message;
+                    userError.style.display = 'block';
                 } finally {
                     createBtn.innerText = "Create Account";
                     createBtn.disabled = false;
@@ -152,54 +138,52 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- تابع بارگذاری لیست کارمندان ---
+    // --- تابع بارگذاری لیست کارمندان (با RPC) ---
     async function loadStaffList() {
         const container = document.getElementById('staff-container');
         if (!container) return;
         
-        // دریافت لیست (نیاز است که برای جدول staff سیاست Public Read تنظیم کرده باشید)
-        const { data, error } = await supabaseClient
-            .from('staff')
-            .select('*')
-            .order('id', { ascending: false });
+        try {
+            // استفاده از تابع RPC به جای Select مستقیم
+            const { data, error } = await supabaseClient.rpc('get_staff_list');
 
-        if (error) {
-            console.error("Load List Error:", error);
-            // اگر خطای RLS باشد، پیام مناسب می‌دهیم
-            container.innerHTML = '<p style="color:red; font-size:12px;">Access Denied (RLS is on). Add "Select" Policy for Staff.</p>';
-            return;
-        }
+            if (error) throw error;
 
-        container.innerHTML = '';
-        if (!data || data.length === 0) {
-            container.innerHTML = '<p style="color:#aaa">No staff found.</p>';
-            return;
-        }
+            container.innerHTML = '';
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="color:#aaa">No staff found.</p>';
+                return;
+            }
 
-        data.forEach(user => {
-            const div = document.createElement('div');
-            div.className = 'staff-item';
-            div.innerHTML = `
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="width:35px; height:35px; background:#f0f0f0; border-radius:50%; display:flex; align-items:center; justify-content:center;">
-                        <i class="ri-user-line"></i>
+            data.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'staff-item';
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="width:35px; height:35px; background:#f0f0f0; border-radius:50%; display:flex; align-items:center; justify-content:center;">
+                            <i class="ri-user-line"></i>
+                        </div>
+                        <span style="font-weight:500;">${user.username}</span>
                     </div>
-                    <span style="font-weight:500;">${user.username}</span>
-                </div>
-                <div class="staff-actions">
-                    <button class="btn-action btn-reset" onclick="resetPassword(${user.id}, '${user.username}')">
-                        <i class="ri-key-2-line"></i> New Pass
-                    </button>
-                    <button class="btn-action btn-delete" onclick="deleteUser(${user.id})">
-                        <i class="ri-delete-bin-line"></i> Delete
-                    </button>
-                </div>
-            `;
-            container.appendChild(div);
-        });
+                    <div class="staff-actions">
+                        <button class="btn-action btn-reset" onclick="resetPassword(${user.id}, '${user.username}')">
+                            <i class="ri-key-2-line"></i> New Pass
+                        </button>
+                        <button class="btn-action btn-delete" onclick="deleteUser(${user.id})">
+                            <i class="ri-delete-bin-line"></i> Delete
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+        } catch (err) {
+            console.error("Load List Error:", err);
+            container.innerHTML = '<p style="color:red; font-size:12px;">Error loading list. Check Console.</p>';
+        }
     }
 
-    // --- تابع تغییر رمز کارمند (Global) ---
+    // --- تغییر رمز کارمند (با RPC) ---
     window.resetPassword = async function(id, username) {
         const newPass = prompt(`Enter NEW password for ${username}:`);
         
@@ -210,29 +194,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const { error } = await supabaseClient
-                .from('staff')
-                .update({ password: newPass })
-                .eq('id', id);
+            // استفاده از RPC
+            const { error } = await supabaseClient.rpc('update_staff_password', {
+                target_id: id,
+                new_password: newPass
+            });
 
             if (error) {
-                alert("Error updating: " + error.message + "\n(Check RLS Policies)");
+                alert("Error updating: " + error.message);
             } else {
                 alert(`Password for ${username} updated successfully!`);
             }
         }
     }
 
-    // --- تابع حذف کارمند (Global) ---
+    // --- حذف کارمند (با RPC) ---
     window.deleteUser = async function(id) {
         if(confirm('Are you sure you want to remove this user?')) {
-            const { error } = await supabaseClient
-                .from('staff')
-                .delete()
-                .eq('id', id);
+            // استفاده از RPC
+            const { error } = await supabaseClient.rpc('delete_staff', {
+                target_id: id
+            });
                 
             if (error) {
-                alert("Error deleting: " + error.message + "\n(Check RLS Policies)");
+                alert("Error deleting: " + error.message);
             } else {
                 loadStaffList();
             }
