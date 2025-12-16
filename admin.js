@@ -1,226 +1,121 @@
-// ==========================================
-// تنظیمات اتصال به دیتابیس Supabase
-// ==========================================
-const SUPABASE_URL = 'https://ducmehygksmijtynfuzt.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1Y21laHlna3NtaWp0eW5mdXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NTgyNTQsImV4cCI6MjA4MTIzNDI1NH0.Zo0RTm5fPn-sA6AkqSIPCCiehn8iW2Ou4I26HnC2CfU';
+const SB_URL = 'https://ducmehygksmijtynfuzt.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1Y21laHlna3NtaWp0eW5mdXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NTgyNTQsImV4cCI6MjA4MTIzNDI1NH0.Zo0RTm5fPn-sA6AkqSIPCCiehn8iW2Ou4I26HnC2CfU';
+const supabase = supabase.createClient(SB_URL, SB_KEY);
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const main = document.getElementById('main');
 
-document.addEventListener('DOMContentLoaded', () => {
+// --- 1. Dashboard ---
+async function renderDashboard() {
+    const start = new Date(); start.setDate(1); start.setHours(0,0,0,0);
+    const end = new Date(); end.setMonth(end.getMonth()+1); end.setDate(0);
+    const { data } = await supabase.rpc('get_sales_report', { start_date: start, end_date: end });
+    const stats = data[0] || { total_orders: 0, total_revenue: 0 };
 
-    // --- Logout ---
-    const logoutBtn = document.querySelector('.logout');
-    if(logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            if(confirm('Are you sure you want to logout?')) {
-                sessionStorage.clear();
-                window.location.href = 'login.html';
-            }
-        });
-    }
+    main.innerHTML = `
+        <h3>Dashboard (This Month)</h3>
+        <div class="grid" style="margin-top:20px;">
+            <div class="card"><div style="color:var(--grey)">Orders</div><h2>${stats.total_orders}</h2></div>
+            <div class="card"><div style="color:var(--grey)">Revenue</div><h2 style="color:var(--primary)">$${stats.total_revenue}</h2></div>
+            <div class="card"><h4>Admin</h4><button class="btn btn-outline" onclick="changeMyPassword()">Change My Password</button></div>
+        </div>`;
+}
 
-    // ============================================
-    // 1. تغییر رمز خود مدیر (Admin Password Update)
-    // ============================================
-    const adminPassInput = document.getElementById('admin-new-pass');
-    const updateAdminBtn = document.getElementById('update-admin-btn');
-    const adminError = document.getElementById('admin-error');
-    const adminSuccess = document.getElementById('admin-success');
+async function changeMyPassword() {
+    const newPass = prompt("Enter new password (Letters & Numbers):");
+    if(!newPass) return;
+    // استفاده از Regex ساده‌تر (حروف و اعداد)
+    if (!/^[a-zA-Z0-9]+$/.test(newPass)) return alert("Password: Letters & Numbers only");
+    const { error } = await supabase.rpc('update_admin_password', { new_password: newPass, target_user: 'admin' });
+    if(error) alert("Error: " + error.message); else alert("Updated!");
+}
 
-    if (updateAdminBtn) {
-        updateAdminBtn.addEventListener('click', async () => {
-            const newPass = adminPassInput.value.trim();
-            adminError.style.display = 'none';
-            adminSuccess.style.display = 'none';
+// --- 2. Reports ---
+async function renderReports() {
+    main.innerHTML = `<h3>Sales Reports</h3><div class="card">
+        <div class="tabs">
+            <div class="tab" onclick="loadReport(1)">1 Day</div><div class="tab" onclick="loadReport(7)">7 Days</div>
+            <div class="tab" onclick="loadReport(30)">1 Month</div><div class="tab" onclick="loadReport(365)">1 Year</div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:15px;"><input type="date" id="d1" class="form-control"><input type="date" id="d2" class="form-control"><button class="btn" onclick="loadCustomReport()">Check</button></div>
+        <div id="rep-result" style="margin-top:20px; padding:20px; background:#f9f9f9;">Select range...</div>
+    </div>`;
+}
+async function loadReport(days) { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - days); fetchStats(s, e); }
+async function loadCustomReport() { const d1 = document.getElementById('d1').value, d2 = document.getElementById('d2').value; if(d1&&d2) fetchStats(new Date(d1), new Date(d2)); }
+async function fetchStats(s, e) {
+    const { data } = await supabase.rpc('get_sales_report', { start_date: s, end_date: e });
+    const r = data[0] || {total_orders:0, total_revenue:0};
+    document.getElementById('rep-result').innerHTML = `<b>Orders: ${r.total_orders}</b> | <b style="color:var(--primary)">Revenue: $${r.total_revenue}</b>`;
+}
 
-            const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
-            if (!passRegex.test(newPass)) {
-                adminError.innerText = "Password must include 1 Uppercase, 1 Lowercase, and 1 Number.";
-                adminError.style.display = 'block';
-                return;
-            }
+// --- 3. Club ---
+async function renderClub() {
+    const { data: all } = await supabase.from('customers').select('*');
+    const loyal = all ? all.filter(c => c.total_orders > 3) : [];
+    
+    // نمایش نام، نام خانوادگی، تلفن (full_name در دیتابیس ترکیب این دو است)
+    let h = `<h3>Customer Club</h3><div class="tabs"><div class="tab active" onclick="toggleClub('all',this)">All</div><div class="tab" onclick="toggleClub('loyal',this)">Loyal (>3)</div></div>`;
+    
+    h += `<div id="list-all" class="card"><h4>All Customers</h4>`;
+    if(all) all.forEach(c => h+=`<div style="padding:10px; border-bottom:1px solid #eee;">${c.full_name} - ${c.phone}</div>`);
+    h += `</div>`;
 
-            updateAdminBtn.innerText = "Updating...";
-            updateAdminBtn.disabled = true;
+    h += `<div id="list-loyal" class="card" style="display:none"><h4>Loyal Customers</h4>`;
+    loyal.forEach(c => h+=`<div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;"><span>${c.full_name} (${c.phone})</span><span><b>${c.total_orders}</b> orders ($${c.total_spent})</span></div>`);
+    h += `</div>`;
+    main.innerHTML = h;
+}
+function toggleClub(t, b) { document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); document.getElementById('list-all').style.display=t==='all'?'block':'none'; document.getElementById('list-loyal').style.display=t==='loyal'?'block':'none'; }
 
-            try {
-                // استفاده از تابع RPC امنیتی
-                const { error } = await supabaseClient.rpc('update_admin_password', {
-                    new_password: newPass,
-                    target_user: 'admin'
-                });
+// --- 4. Messages ---
+async function renderMessages() {
+    const { data } = await supabase.from('messages').select('*').order('created_at', {ascending:false});
+    main.innerHTML = `<h3>Messages</h3><div class="card">${data.map(m=>`<div style="padding:10px; border-bottom:1px solid #eee; ${m.title.includes('Rating 1')?'background:#FFF0F0':''}"><b style="${m.title.includes('Rating 1')?'color:red':''}">${m.title}</b>: ${m.content}</div>`).join('')}</div>`;
+}
 
-                if (error) throw error;
-
-                adminSuccess.style.display = 'block';
-                adminPassInput.value = '';
-
-            } catch (err) {
-                console.error("Update Admin Error:", err);
-                adminError.innerText = "Error: " + err.message;
-                adminError.style.display = 'block';
-            } finally {
-                updateAdminBtn.innerText = "Update My Password";
-                updateAdminBtn.disabled = false;
-            }
-        });
-    }
-
-    // ============================================
-    // 2. مدیریت کارمندان (Staff Management)
-    // ============================================
-    const userInput = document.getElementById('new-user');
-    const passInput = document.getElementById('new-pass');
-    const createBtn = document.getElementById('create-btn');
-    const userError = document.getElementById('user-error');
-    const passError = document.getElementById('pass-error');
-    const staffSuccess = document.getElementById('staff-success');
-
+// --- 5. Staff/Admin ---
+async function renderStaff() {
+    main.innerHTML = `<h3>User Management</h3><div class="grid">
+        <div class="card"><h4>Create</h4>
+            <select id="role" class="form-control" style="margin-bottom:10px"><option value="staff">Kitchen Staff</option><option value="admin">Admin</option></select>
+            <input id="nu" class="form-control" placeholder="Username" style="margin-bottom:10px">
+            <input id="np" class="form-control" placeholder="Password" style="margin-bottom:10px">
+            <button class="btn" onclick="createUser()">Create</button>
+        </div>
+        <div class="card"><h4>Kitchen Staff</h4><div id="sl">Loading...</div></div>
+    </div>`;
     loadStaffList();
+}
 
-    // --- ساخت کارمند جدید ---
-    if (createBtn) {
-        createBtn.addEventListener('click', async () => {
-            const username = userInput.value.trim();
-            const password = passInput.value.trim();
-            
-            userError.style.display = 'none';
-            passError.style.display = 'none';
-            staffSuccess.style.display = 'none';
-            let isValid = true;
+async function createUser() {
+    const role = document.getElementById('role').value;
+    const u = document.getElementById('nu').value;
+    const p = document.getElementById('np').value;
+    // Regex ساده: حروف و اعداد
+    if(!/^[a-zA-Z0-9]+$/.test(u) || !/^[a-zA-Z0-9]+$/.test(p)) return alert("Only Letters & Numbers allowed");
 
-            if (!/^[a-zA-Z0-9]+$/.test(username)) {
-                userError.innerText = "Username: Only English letters and numbers allowed.";
-                userError.style.display = 'block';
-                isValid = false;
-            }
-            const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
-            if (!passRegex.test(password)) {
-                passError.innerText = "Password: Must have 1 Uppercase, 1 Lowercase, 1 Number.";
-                passError.style.display = 'block';
-                isValid = false;
-            }
-
-            if (isValid) {
-                createBtn.innerText = "Saving...";
-                createBtn.disabled = true;
-
-                try {
-                    // چک کردن تکراری بودن (به روش امن: تلاش برای ساخت و مدیریت ارور)
-                    // اینجا از تابع RPC استفاده می‌کنیم
-                    const { error } = await supabaseClient.rpc('create_staff', {
-                        new_username: username,
-                        new_password: password
-                    });
-
-                    if (error) {
-                        // اگر خطای یکتایی (Unique) بود
-                        if (error.message.includes('unique') || error.message.includes('duplicate')) {
-                             throw new Error("Username already exists.");
-                        }
-                        throw error;
-                    }
-                    
-                    staffSuccess.style.display = 'block';
-                    userInput.value = '';
-                    passInput.value = '';
-                    loadStaffList(); // رفرش لیست
-
-                } catch (err) {
-                    console.error("Create Staff Error:", err);
-                    userError.innerText = err.message;
-                    userError.style.display = 'block';
-                } finally {
-                    createBtn.innerText = "Create Account";
-                    createBtn.disabled = false;
-                }
-            }
-        });
+    if(role==='staff') {
+        const { error } = await supabase.rpc('create_staff', { new_username: u, new_password: p });
+        if(error) alert(error.message); else { alert("Staff Created"); loadStaffList(); }
+    } else {
+        const { error } = await supabase.from('admins').insert([{username:u, password:p}]);
+        if(error) alert(error.message); else alert("Admin Created");
     }
+}
 
-    // --- تابع بارگذاری لیست کارمندان (با RPC) ---
-    async function loadStaffList() {
-        const container = document.getElementById('staff-container');
-        if (!container) return;
-        
-        try {
-            // استفاده از تابع RPC به جای Select مستقیم
-            const { data, error } = await supabaseClient.rpc('get_staff_list');
+async function loadStaffList() {
+    const { data, error } = await supabase.rpc('get_staff_list');
+    const c = document.getElementById('sl');
+    if(error) return c.innerHTML='Error';
+    c.innerHTML = data.map(s => `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;"><span>${s.username}</span><button class="btn" style="background:red; padding:5px;" onclick="delStaff(${s.id})">Del</button></div>`).join('');
+}
+async function delStaff(id) { if(confirm("Delete?")) { await supabase.rpc('delete_staff', {target_id:id}); loadStaffList(); } }
 
-            if (error) throw error;
-
-            container.innerHTML = '';
-            if (!data || data.length === 0) {
-                container.innerHTML = '<p style="color:#aaa">No staff found.</p>';
-                return;
-            }
-
-            data.forEach(user => {
-                const div = document.createElement('div');
-                div.className = 'staff-item';
-                div.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <div style="width:35px; height:35px; background:#f0f0f0; border-radius:50%; display:flex; align-items:center; justify-content:center;">
-                            <i class="ri-user-line"></i>
-                        </div>
-                        <span style="font-weight:500;">${user.username}</span>
-                    </div>
-                    <div class="staff-actions">
-                        <button class="btn-action btn-reset" onclick="resetPassword(${user.id}, '${user.username}')">
-                            <i class="ri-key-2-line"></i> New Pass
-                        </button>
-                        <button class="btn-action btn-delete" onclick="deleteUser(${user.id})">
-                            <i class="ri-delete-bin-line"></i> Delete
-                        </button>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-
-        } catch (err) {
-            console.error("Load List Error:", err);
-            container.innerHTML = '<p style="color:red; font-size:12px;">Error loading list. Check Console.</p>';
-        }
-    }
-
-    // --- تغییر رمز کارمند (با RPC) ---
-    window.resetPassword = async function(id, username) {
-        const newPass = prompt(`Enter NEW password for ${username}:`);
-        
-        if (newPass) {
-            const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\W]+$/;
-            if (!passRegex.test(newPass)) {
-                alert("Error: Password must include 1 Uppercase, 1 Lowercase, and 1 Number.");
-                return;
-            }
-
-            // استفاده از RPC
-            const { error } = await supabaseClient.rpc('update_staff_password', {
-                target_id: id,
-                new_password: newPass
-            });
-
-            if (error) {
-                alert("Error updating: " + error.message);
-            } else {
-                alert(`Password for ${username} updated successfully!`);
-            }
-        }
-    }
-
-    // --- حذف کارمند (با RPC) ---
-    window.deleteUser = async function(id) {
-        if(confirm('Are you sure you want to remove this user?')) {
-            // استفاده از RPC
-            const { error } = await supabaseClient.rpc('delete_staff', {
-                target_id: id
-            });
-                
-            if (error) {
-                alert("Error deleting: " + error.message);
-            } else {
-                loadStaffList();
-            }
-        }
-    }
-});
+function showSection(s) {
+    if(s==='dashboard') renderDashboard();
+    if(s==='reports') renderReports();
+    if(s==='club') renderClub();
+    if(s==='messages') renderMessages();
+    if(s==='staff') renderStaff();
+}
+renderDashboard();
