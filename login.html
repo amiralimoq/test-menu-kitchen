@@ -3,176 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Restaurant System Login</title>
-    <!-- فونت -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-    
-    <!-- لینک اصلاح شده کتابخانه Supabase (نسخه UMD) -->
+    <title>Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #F8F9FD;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .login-card {
-            background: white;
-            padding: 40px;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-            width: 320px;
-            text-align: center;
-        }
-        .login-logo {
-            font-size: 28px;
-            font-weight: 700;
-            color: #2A2A2A;
-            margin-bottom: 30px;
-            display: inline-block;
-        }
-        .login-logo span { color: #FF724C; }
-        
-        .input-group { margin-bottom: 15px; text-align: left; }
-        .input-group label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; margin-left: 5px; }
-        
-        input {
-            width: 100%;
-            padding: 14px;
-            border: 1px solid #eee;
-            border-radius: 12px;
-            box-sizing: border-box;
-            outline: none;
-            font-size: 14px;
-            transition: 0.3s;
-            background: #FAFAFA;
-        }
-        input:focus { border-color: #FF724C; background: #fff; }
-        
-        button {
-            width: 100%;
-            padding: 14px;
-            background-color: #FF724C;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 14px;
-            cursor: pointer;
-            transition: 0.2s;
-            margin-top: 10px;
-            box-shadow: 0 5px 20px rgba(255, 114, 76, 0.25);
-        }
-        button:hover { background-color: #e05530; transform: translateY(-2px); }
-        button:disabled { background-color: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
-        
-        .error-msg {
-            color: #FF7675;
-            font-size: 13px;
-            margin-top: 15px;
-            display: none;
-            background: #FFF0F0;
-            padding: 10px;
-            border-radius: 8px;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
-
-    <div class="login-card">
-        <div class="login-logo">food<span>Resto</span></div>
-        
-        <div class="input-group">
-            <label>Username</label>
-            <input type="text" id="username" placeholder="Enter username">
-        </div>
-        
-        <div class="input-group">
-            <label>Password</label>
-            <input type="password" id="password" placeholder="Enter password">
-        </div>
-
-        <button id="login-btn" onclick="handleLogin()">Login to System</button>
-        <div class="error-msg" id="error-msg">Incorrect Username or Password!</div>
+<body style="background: #F8F9FD;">
+    <div class="card" style="width: 320px; text-align: center;">
+        <div class="logo">food<span>Resto</span></div>
+        <input type="text" id="user" class="form-control" placeholder="Username" style="margin-bottom: 15px;">
+        <input type="password" id="pass" class="form-control" placeholder="Password" style="margin-bottom: 15px;">
+        <button onclick="login()" class="btn" style="width: 100%;">Login</button>
+        <p id="error" style="color: #FF7675; font-size: 12px; margin-top: 10px; display: none;"></p>
     </div>
 
     <script>
-        // ==========================================
-        // تنظیمات Supabase
-        // ==========================================
-        const SUPABASE_URL = 'https://ducmehygksmijtynfuzt.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1Y21laHlna3NtaWp0eW5mdXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NTgyNTQsImV4cCI6MjA4MTIzNDI1NH0.Zo0RTm5fPn-sA6AkqSIPCCiehn8iW2Ou4I26HnC2CfU';
+        const SB_URL = 'https://ducmehygksmijtynfuzt.supabase.co';
+        const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1Y21laHlna3NtaWp0eW5mdXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NTgyNTQsImV4cCI6MjA4MTIzNDI1NH0.Zo0RTm5fPn-sA6AkqSIPCCiehn8iW2Ou4I26HnC2CfU';
+        const supabase = supabase.createClient(SB_URL, SB_KEY);
 
-        // 1. ساخت کلاینت
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        async function handleLogin() {
-            const user = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value.trim();
-            const errorMsg = document.getElementById('error-msg');
-            const btn = document.getElementById('login-btn');
-
-            errorMsg.style.display = 'none';
-
-            if(!user || !pass) {
-                errorMsg.innerText = "Please fill all fields.";
-                errorMsg.style.display = 'block';
-                return;
-            }
-
-            btn.innerText = "Verifying...";
-            btn.disabled = true;
-
-            try {
-                // 2. فراخوانی تابع SQL امنیتی (check_credentials)
-                const { data, error } = await supabaseClient.rpc('check_credentials', {
-                    my_username: user,
-                    my_password: pass
-                });
-
-                if (error) {
-                    console.error("RPC Error:", error);
-                    // اگر تابع پیدا نشد
-                    if (error.message.includes('function') && error.message.includes('not found')) {
-                        throw new Error("تابع SQL یافت نشد. لطفاً مرحله ساخت تابع check_credentials را در Supabase انجام دهید.");
-                    }
-                    throw error;
-                }
-
-                // بررسی نتیجه
-                if (data === 'admin') {
-                    sessionStorage.setItem('role', 'admin');
-                    window.location.href = 'admin.html';
-                } 
-                else if (data === 'kitchen') {
-                    sessionStorage.setItem('role', 'kitchen');
-                    sessionStorage.setItem('isLoggedIn', 'true');
-                    window.location.href = 'kitchen.html';
-                } 
-                else {
-                    // data === 'invalid'
-                    errorMsg.innerText = "Invalid Username or Password!";
-                    errorMsg.style.display = 'block';
-                }
-
-            } catch (err) {
-                console.error(err);
-                errorMsg.innerText = err.message || "Connection Error.";
-                errorMsg.style.display = 'block';
-            } finally {
-                btn.innerText = "Login to System";
-                btn.disabled = false;
-            }
+        async function login() {
+            const u = document.getElementById('user').value;
+            const p = document.getElementById('pass').value;
+            const err = document.getElementById('error');
+            
+            // 1. لاگین از طریق دیتابیس
+            const { data, error } = await supabase.rpc('check_credentials', { my_username: u, my_password: p });
+            
+            if (data === 'admin') { sessionStorage.setItem('role','admin'); location.href='admin.html'; }
+            else if (data === 'kitchen') { sessionStorage.setItem('role','kitchen'); location.href='kitchen.html'; }
+            else { err.style.display='block'; err.innerText = 'Invalid Credentials'; }
         }
-
-        // زدن دکمه اینتر
-        document.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') handleLogin();
-        });
     </script>
 </body>
 </html>
